@@ -1,0 +1,161 @@
+✅ Step 1 — Create project folders and a Python virtual environment
+
+Still in the VM terminal, run:
+
+# create project structure in your home directory:
+mkdir -p ~/graduation_project/detection/{suricata,rules,scripts,pcaps,logs}
+
+# create and activate python venv:
+cd ~/graduation_project/detection
+python3 -m venv venv
+source venv/bin/activate
+
+# upgrade pip and install initial python deps:
+pip install --upgrade pip
+pip install scapy requests python-dotenv
+
+# deactivate venv for now:
+deactivate
+
+
+Files/folders you now have:
+
+~/graduation_project/detection/ with suricata/ rules/ scripts/ pcaps/ logs/
+
+a virtualenv at ~/graduation_project/detection/venv
+
+
+✅ Step 2 — Install Suricata
+
+Run these commands in your VM terminal:
+
+# Add the official Suricata stable PPA
+sudo add-apt-repository ppa:oisf/suricata-stable -y
+sudo apt update
+
+# Install Suricata
+sudo apt install -y suricata suricata-update
+
+# Check version to confirm installation
+suricata --build-info
+
+You should see a Suricata version output.
+Suricata is now installed.
+
+
+
+✅ Step 3 — Enable EVE JSON output
+
+Backup Suricata config:
+
+sudo cp /etc/suricata/suricata.yaml /etc/suricata/suricata.yaml.bak
+
+
+Edit Suricata configuration:
+
+sudo nano /etc/suricata/suricata.yaml
+
+
+Find the outputs: section.
+Replace (or add) the eve-log section with:
+
+outputs:
+  - eve-log:
+      enabled: yes
+      filetype: regular
+      filename: eve.json
+      types:
+        - alert
+        - dns
+        - http
+        - tls
+        - flow
+        - stats
+
+
+Scroll to rule-files: and ensure it includes local.rules:
+
+rule-files:
+  - suricata.rules
+  - local.rules
+
+
+Save (Ctrl+O → Enter) and exit (Ctrl+X).
+
+
+✅ Step 4 — Test Suricata configuration
+
+sudo suricata -T -c /etc/suricata/suricata.yaml
+
+If you see Configuration OK, everything is ready.
+
+
+
+✅ Step 5 - Adding Custom Suricata Rules (local.rules) — Step-by-Step Guide
+
+1. Open the local.rules File:
+Suricata stores custom rules in:
+
+/etc/suricata/rules/local.rules
+
+
+Open the file using nano:
+
+sudo nano /etc/suricata/rules/local.rules
+
+2. Add Your Custom Rules:
+Below are ready to use example signatures:
+
+A. Detect SMB Exploit Attempt (MS17‑010):
+
+alert tcp any any -> any 445 (msg:"Possible SMB Exploit MS17-010"; flow:to_server; content:"|FF|SMB"; sid:2000010; rev:1;)
+
+B. Detect ICMP Ping Sweep:
+
+alert icmp any any -> any any (msg:"ICMP Ping Sweep Detected"; itype:8; detection_filter:track by_src, count 5, seconds 2; sid:2000011; rev:1;)
+
+C. Detect Suspicious DNS Query:
+
+alert dns any any -> any any (msg:"Suspicious DNS Query - malicious.com"; content:"malicious.com"; nocase; sid:2000012; rev:1;)
+
+D. Detect HTTP Request Containing the Word “Admin”:
+
+alert http any any -> any any (msg:"Admin Page Access Attempt"; content:"admin"; nocase; sid:2000013; rev:1;)
+
+Important Notes
+
+Every rule must have:
+sid: a unique rule ID (start from 1,000,000 or above)
+rev: rule revision number
+Correct syntax to avoid Suricata loading errors
+
+3. Save the File
+
+Inside nano, press:
+
+CTRL + O - ENTER - CTRL + X
+
+
+
+✅ Step 6 -  Test Your Rules Before Starting Suricata
+This is a critical step to ensure the rules have no syntax errors.
+Run the test:
+
+sudo suricata -T -c /etc/suricata/suricata.yaml
+
+
+If everything is correct, you will see:
+
+<Notice> - Configuration provided was successfully tested
+If any rule has an issue, Suricata will print the rule and line number where the error exists.
+
+
+
+✅ Step 7 - Restart Suricata
+Apply the new rules by restarting the service:
+
+sudo systemctl restart suricata
+
+Check the service status:
+
+sudo systemctl status suricata

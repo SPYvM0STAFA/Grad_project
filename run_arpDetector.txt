@@ -1,0 +1,145 @@
+---------------------------------------------------------------------------------------------------------
+
+✅ How to Run arp_detector.py (Ubuntu)
+
+1. Install Scapy:
+
+sudo apt update
+sudo apt install python3-pip -y
+pip3 install scapy
+
+2. Save the script:
+
+nano arp_detector.py
+
+Paste the code → Save & Exit.
+
+3. Make it executable:
+
+chmod +x arp_detector.py
+
+4. Run it as root:
+
+(because sniffing requires privilege)
+
+sudo python3 arp_detector.py
+
+You should see:
+
+ARP Detector started... monitoring ARP packets.
+Logging alerts to /var/log/suricata/fast.log
+
+
+✅ PHASE 1 — Clean setup
+
+1. Make sure Suricata config loads correctly
+
+Run:
+
+sudo suricata -T -c /etc/suricata/suricata.yaml
+
+If you see no errors, continue.
+
+2. Check your network interface
+
+In your VM:
+
+ip a
+
+
+You confirmed your correct interface is:
+
+enp0s3
+
+
+✅ PHASE 2 — Run Suricata manually (foreground)
+
+⚠ Do not use systemctl — the service fails in VMs
+Instead run:
+
+sudo suricata -c /etc/suricata/suricata.yaml -i enp0s3
+
+
+You will see:
+
+<Info> - all 1 packet processing threads, 1 management threads initialized
+
+
+Leave this window running.
+
+✅ PHASE 3 — Send ARP spoof packet
+
+Open a new terminal.
+
+Activate your venv:
+
+cd ~/graduation_project/detection
+source venv/bin/activate
+
+
+Then run the ARP spoof packet:
+
+Using Scapy (Simple Test):
+
+sudo python3 - << 'EOF'
+from scapy.all import send, ARP
+send(ARP(op=2, psrc="192.168.1.1", pdst="192.168.1.10", hwdst="ff:ff:ff:ff:ff:ff"))
+EOF
+
+ or:
+
+sudo arpspoof -i enp0s3 -t 10.200.114.134 10.200.114.1
+
+If arpspoof is not installed:
+
+sudo apt install dsniff
+
+You should see:
+
+ARP spoof packet sent.
+
+ or: 
+
+✅ Use this exact command
+sudo arpspoof -i enp0s3 -t 10.163.86.225 10.163.86.244
+
+Meaning:
+
+Target: your VM (10.163.86.225)
+Pretend to be gateway: 10.163.86.244
+(so your VM thinks YOU are the router)
+
+ or:
+
+✅ Use Scapy to send ARP spoof packets (this always works locally)
+
+Try sending a packet to yourself:
+
+from scapy.all import *
+sendp(Ether(dst="ff:ff:ff:ff:ff:ff")/ARP(op=2,
+     psrc="10.163.86.244",
+     pdst="10.163.86.225",
+     hwsrc="11:22:33:44:55:66"), iface="enp0s3")
+
+
+You should see it in tcpdump:
+
+sudo tcpdump -i enp0s3 arp
+
+
+Even if arpspoof fails, Scapy will still inject packets, so your arp_detector.py will work. 
+
+
+✅ PHASE 6 — Check if Suricata detected it
+
+Open another terminal:
+
+sudo tail -f /var/log/suricata/fast.log
+
+
+Expected output:
+
+11/20/2025-12:22:10.123456  [**] [1:1000001:1] ARP Spoofing Detected [**]
+
+
+🎉 Congratulations — Suricata rules + packet detection work.
