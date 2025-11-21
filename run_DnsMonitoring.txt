@@ -1,0 +1,102 @@
+✅ Phase One — Building a DNS Monitor Using Scapy
+1.1 Install Requirements:
+
+sudo apt update
+sudo apt install python3 python3-pip -y
+pip3 install scapy requests
+
+1.2 Create the DNS Monitoring Script
+
+Create a file named dns_monitor.py
+
+1.3 Run the DNS Monitor
+
+sudo python3 dns_monitor.py enp0s3
+
+Monitor the log:
+
+sudo tail -f /var/log/dns_monitor.json
+
+
+
+✅ Phase Two — Capturing DNS Traffic Using PCAP
+2.1 Capture DNS Packets:
+
+sudo tcpdump -i enp0s3 -w dns_capture.pcap udp port 53
+
+2.2 Verify the PCAP File:
+
+tcpdump -r dns_capture.pcap
+
+
+
+✅ Phase Three — Suricata Integration (EVE JSON Output)
+3.1 Install Suricata:
+
+sudo apt install suricata -y
+
+3.2 Enable EVE JSON Output
+Open the config:
+
+sudo nano /etc/suricata/suricata.yaml
+
+
+Ensure the following section is enabled:
+
+outputs:
+  - eve-log:
+      enabled: yes
+      filetype: regular
+      filename: /var/log/suricata/eve.json
+      types:
+        - dns
+        - alert
+        - http
+        - tls
+        - flow
+        - anomaly
+
+
+Restart Suricata:
+
+sudo systemctl restart suricata
+
+
+
+✅ Phase Four — Dashboard Integration (ELK Stack / Grafana)
+
+Both Suricata and your DNS monitor output logs in EVE JSON format, so they can be ingested into any SIEM.
+
+4.1 Prepare Logstash Pipeline
+Create:
+
+sudo nano /etc/logstash/conf.d/dns_pipeline.conf
+
+Add:
+
+input {
+  file {
+    path => ["/var/log/suricata/eve.json", "/var/log/dns_monitor.json"]
+    codec => json
+  }
+}
+
+output {
+  elasticsearch {
+    hosts => ["http://localhost:9200"]
+    index => "dns-monitor-%{+YYYY.MM.dd}"
+  }
+}
+
+
+Restart:
+
+sudo systemctl restart logstash
+
+
+When all steps are completed, you will have:
+
+✔ Real-time DNS monitoring
+✔ EVE JSON logs compatible with Suricata
+✔ PCAP collection for forensic analysis
+✔ A lightweight IDS-like DNS threat detection system
